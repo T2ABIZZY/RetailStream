@@ -1,6 +1,6 @@
 import pyspark
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, to_timestamp
+from pyspark.sql.functions import col, from_json, to_timestamp, window, max, min, avg
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # Dynamically grab your PySpark 4.x version
@@ -26,17 +26,25 @@ json_schema = StructType([
     StructField("stock", IntegerType(), True)
 ])
 
-# 1. Unpack the JSON (Bronze to Silver)
 silver_df = df.select(
     from_json(col("value").cast("string"), json_schema).alias("data")
 ).select("data.*")
 
-# 2. Cast the string timestamp into a true PySpark TimestampType
 silver_df = silver_df.withColumn("timestamp", to_timestamp(col("timestamp")))
+gold_df = silver_df.groupBy(
+    window(col("timestamp"), "5 minutes"),
+    col("product_id")
+).agg(
+    max("price").alias("max_price"),
+    min("price").alias("min_price"),
+    avg("price").alias("avg_price"),
+    max("stock").alias("max_stock"),
+    min("stock").alias("min_stock"),
+    avg("stock").alias("avg_stock")
+)
 
-# 3. Print the micro-batches to the console
-query = silver_df.writeStream \
-    .outputMode("append") \
+query = gold_df.writeStream \
+    .outputMode("update") \
     .format("console") \
     .start()
 
