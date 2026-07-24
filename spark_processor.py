@@ -1,6 +1,6 @@
 import pyspark
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, to_timestamp, window, max, min, avg
+from pyspark.sql.functions import col, from_json, to_timestamp, window, max, min, avg, round
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # Dynamically grab your PySpark 4.x version
@@ -37,10 +37,10 @@ gold_df = silver_df.groupBy(
 ).agg(
     max("price").alias("max_price"),
     min("price").alias("min_price"),
-    avg("price").alias("avg_price"),
+    round(avg("price"), 2).alias("avg_price"),
     max("stock").alias("max_stock"),
     min("stock").alias("min_stock"),
-    avg("stock").alias("avg_stock")
+    round(avg("stock"), 2).alias("avg_stock")
 )
 
 query = gold_df.writeStream \
