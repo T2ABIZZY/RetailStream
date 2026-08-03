@@ -1,15 +1,19 @@
+from dotenv import load_dotenv
 import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json, to_timestamp, window, max, min, avg, round
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
+import os
 
-# Dynamically grab your PySpark 4.x version
+
 spark_version = pyspark.__version__
 kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.13:{spark_version}"
-
+bigquery_package = f"com.google.cloud.spark:spark-bigquery-with-dependencies_2.13:0.35.0"
+load_dotenv()
+credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 spark = SparkSession.builder \
     .appName("RetailStream Processor") \
-    .config("spark.jars.packages", kafka_package) \
+    .config("spark.jars.packages", f"{kafka_package},{bigquery_package}") \
     .getOrCreate()
 
 df = spark.readStream \
