@@ -7,13 +7,14 @@ import os
 
 
 spark_version = pyspark.__version__
-kafka_package = f"org.apache.spark:spark-sql-kafka-0-10_2.13:{spark_version}"
-bigquery_package = f"com.google.cloud.spark:spark-bigquery-with-dependencies_2.13:0.35.0"
+kafka_package = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3"
+bigquery_package = "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.44.2"
+inject_package = "javax.inject:javax.inject:1"
 load_dotenv()
 credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 spark = SparkSession.builder \
     .appName("RetailStream Processor") \
-    .config("spark.jars.packages", f"{kafka_package},{bigquery_package}") \
+    .config("spark.jars.packages", f"{kafka_package},{bigquery_package},{inject_package}") \
     .getOrCreate()
 
 df = spark.readStream \
@@ -47,9 +48,19 @@ gold_df = silver_df.groupBy(
     round(avg("stock"), 2).alias("avg_stock")
 )
 
+def write_to_bigquery(batch_df, batch_id):
+    batch_df.write \
+        .format("bigquery") \
+        .option("table", "retailstream-pipeline.gold_layer.market_metrics") \
+        .option("writeMethod", "direct") \
+        .option("credentialsFile", credentials_path) \
+        .mode("append") \
+        .save()
+
 query = gold_df.writeStream \
     .outputMode("update") \
-    .format("console") \
+    .foreachBatch(write_to_bigquery) \
+    .option("checkpointLocation", "./checkpoints") \
     .start()
 
 query.awaitTermination()
