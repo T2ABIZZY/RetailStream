@@ -1,14 +1,16 @@
 from confluent_kafka import Consumer
+import config
 
 def main():
     consumer = Consumer({
-        'bootstrap.servers': 'localhost:9092',
-        'group.id': 'price_event_consumers',
+        'bootstrap.servers': config.KAFKA_BOOTSTRAP_SERVERS,
+        'group.id': config.KAFKA_CONSUMER_GROUP,
         'auto.offset.reset': 'earliest'
     })
 
-    consumer.subscribe(['price_events'])
+    consumer.subscribe([config.KAFKA_TOPIC])
 
+    print(f"Starting CLI consumer on topic '{config.KAFKA_TOPIC}'...")
     try:
         while True:
             msg = consumer.poll(1.0)
@@ -21,7 +23,9 @@ def main():
             print(f"Consumed message: {msg.value().decode('utf-8')} using key {msg.key().decode('utf-8')}")
 
     except KeyboardInterrupt:
+        print("Closing consumer...")
         consumer.close()
-        
+
 if __name__ == "__main__":
     main()
+

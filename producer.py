@@ -1,10 +1,15 @@
+import json
+import logging
 import random
+import time
 from datetime import datetime, timezone
 from typing import Any, Tuple
 from confluent_kafka import Producer
-import json
-import time
 
+import config
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 CATALOG = {
     "SKU-84920": {"base_price": 120.00, "base_stock": 80},   # 65% Mechanical Keyboard (Linear)
@@ -32,7 +37,9 @@ def generate_ecommerce_payload() -> Tuple[dict[str, Any], str]:
     product_id = random.choice(list(CATALOG.keys()))
     product_data = CATALOG[product_id]
     
-    price_volatility = random.uniform(-0.05, 0.05)
+    # Simulate price volatility with occasional flash sales (-15% to +5%)
+    is_flash_sale = random.random() < 0.05
+    price_volatility = random.uniform(-0.15, -0.08) if is_flash_sale else random.uniform(-0.05, 0.05)
     current_price = round(product_data["base_price"] * (1 + price_volatility), 2)
     
     current_stock = max(0, product_data["base_stock"] + random.randint(-5, 2))
@@ -49,10 +56,10 @@ def generate_ecommerce_payload() -> Tuple[dict[str, Any], str]:
 
 
 if __name__ == "__main__":
-    producer = Producer({"bootstrap.servers": "localhost:9092"})
-    topic = "price_events"
+    producer = Producer({"bootstrap.servers": config.KAFKA_BOOTSTRAP_SERVERS})
+    topic = config.KAFKA_TOPIC
     
-    print("Starting realistic data stream...")
+    logger.info(f"Starting RetailStream Kafka Producer target topic: {topic}...")
     try:
         while True:
             payload, product_id = generate_ecommerce_payload()
@@ -62,11 +69,12 @@ if __name__ == "__main__":
                 value=json.dumps(payload).encode("utf-8"), 
                 key=product_id.encode("utf-8")
             )
-            print(f"Produced payload: {payload}")
+            logger.info(f"Produced payload for SKU {product_id}: {payload}")
             
             time.sleep(0.5) 
             
     except KeyboardInterrupt:
-        print("\nFlushing records...")
+        logger.info("Keyboard interrupt received. Flushing outstanding records...")
         producer.flush()
-        print("Stopping producer...")
+        logger.info("Kafka Producer stopped.")
+
